@@ -1,0 +1,150 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide emptymembers
+
+enum SceneType {
+  LARGE_BATTLEFIELD
+  SMALL_BATTLEFIELD
+  DUEL_SCENE
+}
+
+enum WeatherType {
+  SUNNY
+  FOGGY
+  RAINY
+}
+
+class WeatherSystem {
+  - currentWeather: WeatherType
+  + getCurrentWeather(): WeatherType
+  + setCurrentWeather(weather: WeatherType): void
+}
+
+class GameContext {
+  + currentScene: SceneType
+  + weatherSystem: WeatherSystem
+  + currentTurn: int
+  + GameContext(scene: SceneType, weather: WeatherSystem)
+}
+
+interface SkillState {
+  + {abstract} canActivate(skill: Skill, caster: Wujiang, target: Object, context: GameContext): boolean
+  + {abstract} activate(skill: Skill, caster: Wujiang, target: Object, context: GameContext): void
+  + {abstract} onTurnEnd(skill: Skill, context: GameContext): void
+  + {abstract} getStatus(): String
+}
+
+class ReadyState implements SkillState {
+  + getStatus(): String
+}
+class CooldownState implements SkillState {
+  + getStatus(): String
+}
+
+
+abstract class Skill {
+  # name: String
+  # description: String
+  # currentState: SkillState
+  # maxCooldown: int
+  + Skill(name: String, description: String, maxCooldown: int)
+  + getName(): String
+  + setCurrentState(state: SkillState): void
+  + {abstract} handleStratagemImpact(skillOwner: Wujiang, actualTargetOfStratagem: Object, stratagemCaster: Wujiang, incomingDamage: double, context: GameContext): double
+  + tryActivate(caster: Wujiang, target: Object, context: GameContext): void
+  # {abstract} executeEffect(caster: Wujiang, target: Object, context: GameContext): void
+  + onTurnEndUpdate(context: GameContext): void
+  + getStatus(): String
+}
+
+class JianXiongSkill extends Skill {
+  + JianXiongSkill()
+  + handleStratagemImpact(skillOwner: Wujiang, actualTargetOfStratagem: Object, stratagemCaster: Wujiang, incomingDamage: double, context: GameContext): double
+  # executeEffect(caster: Wujiang, target: Object, context: GameContext): void
+}
+
+class SkillFactory {
+  + {static} createSkill(skillName: String): Skill
+}
+
+abstract class GameEntity {
+  # activeEffects: List<AppliedEffect>
+  # gameContext: GameContext
+  + addAppliedEffect(effect: AppliedEffect): void
+  + updateAppliedEffects(): void
+  + {abstract} getEntityName(): String
+}
+
+class Wujiang extends GameEntity {
+  - name: String
+  - health: double
+  - skills: List<Skill>
+  - leadingArmy: ArmyUnit
+  + Wujiang(name: String, initialHealth: double, context: GameContext)
+  + addSkill(skill: Skill): void
+  + takeDamage(amount: double, source: String): void
+  + processIncomingStratagem(stratagemCaster: Wujiang, stratagem: Stratagem, rawDamage: double, actualTargetOfStratagem: Object): void
+  + updateSkillsAndEffectsOnTurnEnd(): void
+}
+
+class ArmyUnit extends GameEntity {
+  - id: String
+  - leader: Wujiang
+  - unitStrength: double
+  + ArmyUnit(id: String, leader: Wujiang, initialStrength: double, context: GameContext)
+  + takeDamage(amount: double, source: String): void
+  + processIncomingStratagem(stratagemCaster: Wujiang, stratagem: Stratagem, rawDamage: double, actualTargetOfStratagem: Object): void
+  + updateEffectsOnTurnEnd(): void
+}
+
+class Stratagem {
+  - name: String
+  - baseDamage: double
+  + Stratagem(name: String, baseDamage: double)
+  + getName(): String
+  + execute(caster: Wujiang, targetEntity: Object, context: GameContext): void
+}
+
+abstract class AppliedEffect {
+    # name: String
+    # target: Object
+    # remainingDurationTurns: int
+    + {abstract} onApply(): void
+    + {abstract} onExpire(): void
+}
+
+
+' --- Relationships ---
+GameContext o-- SceneType
+GameContext o-- WeatherSystem
+
+Skill o-- SkillState
+SkillState <|.. ReadyState
+SkillState <|.. CooldownState
+
+Skill <|-- JianXiongSkill
+SkillFactory ..> JianXiongSkill : creates
+
+GameEntity <|-- Wujiang
+GameEntity <|-- ArmyUnit
+GameEntity "1" *-- "0..*" AppliedEffect : has active
+
+
+Wujiang "1" *-- "0..*" Skill : possesses
+ArmyUnit "1" o-- "0..1" Wujiang : led by <
+Wujiang "0..1" -- "0..1" ArmyUnit : leads >
+
+
+Stratagem ..> GameContext : uses
+Stratagem ..> Wujiang : caster / target
+Stratagem ..> ArmyUnit : target
+
+JianXiongSkill ..> GameContext : uses in handleStratagemImpact
+JianXiongSkill ..> Wujiang : interacts with
+JianXiongSkill ..> ArmyUnit : interacts with
+
+Wujiang ..> GameContext : uses
+ArmyUnit ..> GameContext : uses
+Skill ..> GameContext : uses (indirectly via states or specific methods)
+
+@enduml
